@@ -1,0 +1,82 @@
+services:
+  # IdM: ユーザー情報を管理する OpenLDAP
+  openldap:
+    image: osixia/openldap:1.5.0
+    container_name: openldap
+    environment:
+      LDAP_ORGANISATION:   "Example Corp"
+      LDAP_DOMAIN:         "example.com"
+      LDAP_ADMIN_PASSWORD: "admin"
+    ports:
+      - "389:389"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost -b dc=example,dc=com -D 'cn=admin,dc=example,dc=com' -w admin || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # IdP: OpenLDAP のユーザーを読み込んで認証処理を行う Keycloak
+  keycloak-idp:
+    image: quay.io/keycloak/keycloak:24.0.3
+    container_name: keycloak-idp
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      JAVA_OPTS_APPEND: "-Xms256m -Xmx512m"
+      KC_HOSTNAME: "localhost"
+      KC_HOSTNAME_PORT: "8081"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
+    ports:
+      - "8081:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+          cpus: "1.0"
+        reservations:
+          memory: 256m
+    depends_on:
+      openldap:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /realms/master HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && cat <&3 | grep -q 'realm' && exec 3>&- || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 18
+      start_period: 30s
+
+  # SP: クライアントが接続する Keycloak。認証を IdP に委譲する
+  keycloak-sp:
+    image: quay.io/keycloak/keycloak:24.0.3
+    container_name: keycloak-sp
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      JAVA_OPTS_APPEND: "-Xms256m -Xmx512m"
+    ports:
+      - "8080:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+          cpus: "1.0"
+        reservations:
+          memory: 256m
+    depends_on:
+      keycloak-idp:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /realms/master HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && cat <&3 | grep -q 'realm' && exec 3>&- || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 18
+      start_period: 30s
