@@ -66,7 +66,7 @@
 
 | 章 | フロー | OAuth | OIDC |
 |---|---|---|---|
-| 8章 | オーソリゼーションコード (`response_type=code`) | ✅ | ✅ |
+| 8章 | 認可コード (`response_type=code`) | ✅ | ✅ |
 | 9章 | インプリシット Case1 (`response_type=token`) | ✅ | - |
 | 9章 | インプリシット Case2 (`response_type=id_token`) | - | ✅ |
 | 9章 | インプリシット Case3 (`response_type=id_token token`) | - | ✅ |
